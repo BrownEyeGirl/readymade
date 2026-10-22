@@ -3,51 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ask me anything</title>
+    <title>Fake _ Art _ Gallery</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <!-- font -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Lavishly+Yours&family=Ole&display=swap" rel="stylesheet">
+    <style>{% include 'style.css' %}</style>
 </head>
-<body style="background-image: url('bg.jpg'); background-size: cover; background-attachment: fixed;">
-    <div class="container text-center mt-5 pb-5">
-        <h1 class="display-4"
-            style="font-family: 'Lavishly Yours', cursive; color: ivory">
-            Ask me anything
-        </h1>
+<body>
+    <canvas class="background-dots" id="background-dots" aria-hidden="true"></canvas>
+    <main class="gallery container py-4 py-md-5">
+        <header class="gallery-header">
+            <h1 class="display-4">Fake <span>_</span> Art <span>_</span> Gallery</h1>
+            <p>Turn something ordinary into a work of contemporary art.</p>
+        </header>
 
-        <form method="POST" class="mx-auto col-md-8 col-lg-6" id="prompt-form">
+        <div class="gallery-layout">
+          <section class="prompt-panel" aria-label="Create an artwork">
+            <form method="POST" id="prompt-form">
             <div class="mb-3">
-                <textarea name="prompt" rows="4" class="form-control"
-                          placeholder="Describe an image..." required></textarea>
+                <label for="prompt" class="form-label">What object do you have with you?</label>
+                <textarea id="prompt" name="prompt" rows="4" class="form-control"
+                          placeholder="Describe something from your pocket, bag, or desk. Include details like its material, wear, or color..." required>{{ prompt }}</textarea>
+            </div>
+            <div class="mb-3 text-start">
+                <label for="gallery_setting" class="form-label">Choose your gallery setting</label>
+                <select id="gallery_setting" name="gallery_setting" class="form-select">
+                    {% for key, setting in gallery_settings.items() %}
+                        <option value="{{ key }}" {% if gallery_setting == key %}selected{% endif %}>{{ setting.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="d-grid">
-                <button type="submit" class="btn btn-primary" id="submit-btn">Generate</button>
+                <button type="submit" class="btn btn-primary" id="submit-btn">Make it art</button>
             </div>
-        </form>
+            </form>
 
-        {% if error %}
-            <div class="alert alert-danger mt-4">{{ error }}</div>
-        {% endif %}
+            {% if error %}
+                <div class="alert alert-danger mt-4">{{ error }}</div>
+            {% endif %}
 
-        {% if result %}
-            <h3 class="mt-4" style="color: ivory">Response:</h3>
-            <div class="alert alert-secondary">{{ result }}</div>
-        {% endif %}
+          </section>
+        </div>
 
-        {% if image_b64 %}
-            <h3 class="mt-4" style="color: ivory">Your image:</h3>
-            <img src="data:image/png;base64,{{ image_b64 }}"
-                 alt="Generated image"
-                 class="img-fluid rounded shadow mt-2">
-            <div class="mt-3">
-                <a href="data:image/png;base64,{{ image_b64 }}"
-                   download="generated.png"
-                   class="btn btn-outline-light">Download</a>
-            </div>
-        {% endif %}
+        <div class="results-layout">
+          {% if image_b64 %}
+          <section class="left-column" aria-label="Artwork description">
+            {% if tombstone or extended_label %}
+            <section class="didactic" aria-labelledby="label-heading">
+                <p class="eyebrow">Gallery note</p>
+                <h2 id="label-heading">Didactic description</h2>
+                {% if extended_label %}
+                    <div class="card mt-3 description-card">
+                        <div class="card-body">
+                            <h3 class="h5">About the work</h3>
+                            <p class="mb-0">{{ extended_label }}</p>
+                        </div>
+                    </div>
+                {% endif %}
+            </section>
+            {% else %}
+            <section class="didactic description-placeholder">
+                <p class="eyebrow">Gallery note</p>
+                <h2>Didactic description</h2>
+                <p>Your artwork description will appear here.</p>
+            </section>
+            {% endif %}
+            <p class="generation-stamp">GENERATED_AT <time id="generated-time" datetime="{{ generated_at }}" data-utc="{{ generated_at }}"></time></p>
+          </section>
+          {% endif %}
+
+          <section class="artwork-column" aria-label="Artwork image">
+            {% if image_b64 %}
+              <p class="eyebrow artwork-heading">&gt; name_of_work.png</p>
+              <div class="artwork-display">
+                <div class="artwork-frame">
+                  <img src="data:image/png;base64,{{ image_b64 }}"
+                       alt="Generated exhibition display of {{ prompt }}"
+                       class="artwork-image">
+                  {% if tombstone %}<div class="artwork-info" aria-label="Work information"><span>WORK_INFO</span>{{ tombstone }}</div>{% endif %}
+                </div>
+                <div class="visitor-frame">
+                  <img class="gallery-visitors" src="{{ url_for('static', filename='vis.jpeg') }}" alt="Two gallery visitors looking toward the artwork">
+                  <div class="critique-bubble" id="critique-bubble" aria-live="polite"></div>
+                </div>
+              </div>
+              <a href="data:image/png;base64,{{ image_b64 }}" download="generated.png" class="btn btn-outline-dark download-link">Download image ↗</a>
+            {% endif %}
+          </section>
+        </div>
+    </main>
+
+    <aside class="clock-readout" aria-label="Current date and time">
+        <time id="live-date"></time>
+        <time id="live-time"></time>
+        <div class="cursor-readout" aria-label="Pointer coordinates">
+            <span class="readout-label">CURSOR</span>
+            <span>X:<output id="pointer-x">0000</output></span>
+            <span>Y:<output id="pointer-y">0000</output></span>
+        </div>
+    </aside>
+
+    <div class="project-ticker project-ticker-top" aria-hidden="true">
+        <div class="ticker-track ticker-track-reverse">
+            <p>FAKE _ ART _ GALLERY <span>→</span> A POCKET-SIZED MUSEUM <span>→</span> EVERYDAY OBJECTS, REFRAMED <span>→</span> PROMPT / GENERATE / EXHIBIT <span>→</span> VISITOR COMMENTARY: UNLICENSED <span>→</span> FAKE _ ART _ GALLERY <span>→</span> A POCKET-SIZED MUSEUM <span>→</span> EVERYDAY OBJECTS, REFRAMED <span>→</span> PROMPT / GENERATE / EXHIBIT <span>→</span> VISITOR COMMENTARY: UNLICENSED <span>→</span></p>
+        </div>
     </div>
 
     <script>
@@ -56,7 +113,177 @@
             const btn = document.getElementById("submit-btn");
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
+
+            if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                const bounds = btn.getBoundingClientRect();
+                const colors = ["#174bff", "#ff365d", "#00a676", "#f0a000", "#8c49ff"];
+                let x = bounds.left;
+                let y = bounds.top;
+                let dx = 3.2;
+                let dy = 2.7;
+                let colorIndex = 0;
+                let width = bounds.width;
+                let height = bounds.height;
+
+                btn.classList.add("dvd-bouncing");
+                Object.assign(btn.style, {
+                    left: `${x}px`, top: `${y}px`, width: `${width}px`, height: `${height}px`,
+                    borderColor: colors[colorIndex], backgroundColor: colors[colorIndex]
+                });
+
+                const bounce = () => {
+                    const maxX = Math.max(0, window.innerWidth - width);
+                    const maxY = Math.max(0, window.innerHeight - height);
+                    x += dx;
+                    y += dy;
+                    if (x <= 0 || x >= maxX) { dx *= -1; x = Math.max(0, Math.min(x, maxX)); }
+                    if (y <= 0 || y >= maxY) { dy *= -1; y = Math.max(0, Math.min(y, maxY)); }
+                    if (x === 0 || x === maxX || y === 0 || y === maxY) {
+                        colorIndex = (colorIndex + 1) % colors.length;
+                        btn.style.borderColor = colors[colorIndex];
+                        btn.style.backgroundColor = colors[colorIndex];
+                    }
+                    btn.style.left = `${x}px`;
+                    btn.style.top = `${y}px`;
+                    requestAnimationFrame(bounce);
+                };
+                requestAnimationFrame(bounce);
+            }
         });
+
+        const critiqueBubble = document.getElementById("critique-bubble");
+        if (critiqueBubble) {
+            const casualCritiques = [
+                "I like it, but what if it was more like a different thing?",
+                "The scale is confusing. Is it big, or am I just far away?",
+                "I could do that. I just haven't, which is probably the important part.",
+                "It really makes you think about how objects are shaped.",
+                "I like the bit in the middle. Though I suppose it's all middle, really.",
+                "Feels a little unfinished. Or maybe that's the finished part?",
+                "I don't get it, but I also didn't read the description.",
+                "Bold choice to put it right there where I can see it."
+            ];
+            critiqueBubble.textContent = casualCritiques[Math.floor(Math.random() * casualCritiques.length)];
+        }
+
+        const pointerX = document.getElementById("pointer-x");
+        const pointerY = document.getElementById("pointer-y");
+
+        const liveDate = document.getElementById("live-date");
+        const liveTime = document.getElementById("live-time");
+        const twoDigits = (value) => String(value).padStart(2, "0");
+        const formatDate = (date) => `${date.getFullYear()}-${twoDigits(date.getMonth() + 1)}-${twoDigits(date.getDate())}`;
+        const formatTime = (date) => `${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}:${twoDigits(date.getSeconds())}.${String(date.getMilliseconds()).padStart(3, "0")}`;
+
+        function updateLiveClock() {
+            const now = new Date();
+            liveDate.textContent = formatDate(now);
+            liveTime.textContent = formatTime(now);
+        }
+        updateLiveClock();
+        setInterval(updateLiveClock, 16);
+
+        const generatedTime = document.getElementById("generated-time");
+        if (generatedTime) {
+            const generatedDate = new Date(generatedTime.dataset.utc);
+            generatedTime.textContent = `${formatDate(generatedDate)} ${formatTime(generatedDate)}`;
+        }
+
+        document.addEventListener("pointermove", (event) => {
+            pointerX.value = String(Math.round(event.clientX)).padStart(4, "0");
+            pointerY.value = String(Math.round(event.clientY)).padStart(4, "0");
+        });
+
+        const dotCanvas = document.getElementById("background-dots");
+        const dotContext = dotCanvas.getContext("2d");
+        const dotSpacing = 26;
+        const dotShades = ["#ff6a00", "#ff7900", "#ff8500", "#ff9500", "#f77f00", "#ffad32"];
+        const dotColorByCell = new Map();
+        let dotPointer = { x: -1000, y: -1000 };
+        let dotFrame = 0;
+
+        function drawBackgroundDots() {
+            const scale = Math.min(window.devicePixelRatio || 1, 2);
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            dotCanvas.width = width * scale;
+            dotCanvas.height = height * scale;
+            dotContext.setTransform(scale, 0, 0, scale, 0, 0);
+            dotContext.clearRect(0, 0, width, height);
+
+            for (let y = 12; y < height; y += dotSpacing) {
+                for (let x = 12; x < width; x += dotSpacing) {
+                    const distance = Math.hypot(x - dotPointer.x, y - dotPointer.y);
+                    const influence = Math.max(0, 1 - distance / 78);
+                    const size = 2.4 + influence * 1.3;
+                    const cellKey = `${x}:${y}`;
+                    if (!dotColorByCell.has(cellKey)) {
+                        dotColorByCell.set(cellKey, dotShades[Math.floor(Math.random() * dotShades.length)]);
+                    }
+                    dotContext.globalAlpha = .5 + influence * .3;
+                    dotContext.fillStyle = dotColorByCell.get(cellKey);
+                    dotContext.fillRect(x - size / 2, y - size / 2, size, size);
+                }
+            }
+            dotContext.globalAlpha = 1;
+        }
+
+        function requestDotDraw() {
+            if (!dotFrame) {
+                dotFrame = requestAnimationFrame(() => {
+                    drawBackgroundDots();
+                    dotFrame = 0;
+                });
+            }
+        }
+
+        document.addEventListener("pointermove", (event) => {
+            dotPointer = { x: event.clientX, y: event.clientY };
+            requestDotDraw();
+        });
+        document.addEventListener("pointerleave", () => {
+            dotPointer = { x: -1000, y: -1000 };
+            requestDotDraw();
+        });
+        window.addEventListener("resize", requestDotDraw);
+        drawBackgroundDots();
+
+        // Reveal page copy with a typewriter rhythm while keeping a clean
+        // accessible text alternative for assistive technology.
+        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            const typeTargets = document.querySelectorAll(".gallery-header h1");
+            let elementDelay = 0;
+
+            typeTargets.forEach((target) => {
+                if (target.closest(".gallery-layout textarea, .gallery-layout select")) return;
+
+                const accessibleText = target.innerText.trim();
+                if (!accessibleText) return;
+                if (!target.hasAttribute("aria-label")) target.setAttribute("aria-label", accessibleText);
+
+                const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+                const textNodes = [];
+                while (walker.nextNode()) {
+                    if (walker.currentNode.nodeValue.trim()) textNodes.push(walker.currentNode);
+                }
+
+                let characterIndex = 0;
+                textNodes.forEach((textNode) => {
+                    const wrapper = document.createElement("span");
+                    wrapper.setAttribute("aria-hidden", "true");
+                    [...textNode.nodeValue].forEach((character) => {
+                        const letter = document.createElement("span");
+                        letter.className = "typing-char";
+                        letter.style.animationDelay = `${elementDelay + characterIndex * 24}ms`;
+                        letter.textContent = character;
+                        wrapper.appendChild(letter);
+                        characterIndex += 1;
+                    });
+                    textNode.replaceWith(wrapper);
+                });
+                elementDelay += characterIndex * 24 + 180;
+            });
+        }
     </script>
 </body>
 </html>
