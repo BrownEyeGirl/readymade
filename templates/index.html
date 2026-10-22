@@ -1,62 +1,62 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>The Pocket Biennale</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ask me anything</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lavishly+Yours&family=Ole&display=swap" rel="stylesheet">
 </head>
-<body>
-  <header class="intake">
-    <h1>The Pocket Biennale</h1>
-    <p class="lede">Describe something from your pocket, bag, or desk. The museum will acquire it.</p>
-    <form id="form" autocomplete="off">
-      <label for="object">What is the object?</label>
-      <textarea id="object" name="object" rows="2" maxlength="{{ max_chars }}"
-                placeholder="A half-used tube of lip balm, slightly warm" required></textarea>
-      <div class="row">
-        <span id="count" class="count">0 / {{ max_chars }}</span>
-        <button id="go" type="submit">Hang it in the gallery</button>
-      </div>
-    </form>
-    <p id="error" class="error" role="alert" hidden></p>
-  </header>
+<body style="background-image: url('bg.jpg'); background-size: cover; background-attachment: fixed;">
+    <div class="container text-center mt-5 pb-5">
+        <h1 class="display-4"
+            style="font-family: 'Lavishly Yours', cursive; color: ivory">
+            Ask me anything
+        </h1>
 
-  <main id="stage" class="stage" hidden aria-live="polite">
-    <figure class="work">
-      <div id="frame" class="frame">
-        <p id="frameStatus" class="status">Installing the work…</p>
-        <img id="art" alt="" hidden>
-      </div>
-      <details id="promptBox" class="prompt" hidden>
-        <summary>How the image was prompted</summary>
-        <p id="imagePrompt"></p>
-      </details>
-    </figure>
+        <form method="POST" class="mx-auto col-md-8 col-lg-6" id="prompt-form">
+            <div class="mb-3">
+                <textarea name="prompt" rows="4" class="form-control"
+                          placeholder="Describe an image..." required></textarea>
+            </div>
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary" id="submit-btn">Generate</button>
+            </div>
+        </form>
 
-    <aside class="placard" aria-label="Wall label">
-      <p id="labelStatus" class="status">Writing the wall label…</p>
-      <div id="label" hidden>
-        <section class="tombstone">
-          <p class="artist"><strong id="tArtist"></strong><br><span id="tBio"></span></p>
-          <p class="title"><em id="tTitle"></em>, <span id="tYear"></span></p>
-          <p id="tMedium"></p>
-          <p id="tDims"></p>
-          <p class="small"><em>Provenance:</em> <span id="tProv"></span></p>
-          <p class="small" id="tCredit"></p>
-        </section>
-        <p id="tExtended" class="extended"></p>
-      </div>
-    </aside>
-  </main>
+        {% if error %}
+            <div class="alert alert-danger mt-4">{{ error }}</div>
+        {% endif %}
 
-  <footer>
-    <p>Every artist, theorist, and institution here is invented. Any resemblance to real reputations is a failure of the machine.</p>
-  </footer>
+        {% if result %}
+            <h3 class="mt-4" style="color: ivory">Response:</h3>
+            <div class="alert alert-secondary">{{ result }}</div>
+        {% endif %}
 
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+        {% if image_b64 %}
+            <h3 class="mt-4" style="color: ivory">Your image:</h3>
+            <img src="data:image/png;base64,{{ image_b64 }}"
+                 alt="Generated image"
+                 class="img-fluid rounded shadow mt-2">
+            <div class="mt-3">
+                <a href="data:image/png;base64,{{ image_b64 }}"
+                   download="generated.png"
+                   class="btn btn-outline-light">Download</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Image generation can take a while, so show feedback
+        document.getElementById("prompt-form").addEventListener("submit", function () {
+            const btn = document.getElementById("submit-btn");
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
+        });
+    </script>
 </body>
 </html>
