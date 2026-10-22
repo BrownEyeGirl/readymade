@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ask me anything</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lavishly+Yours&family=Ole&display=swap" rel="stylesheet">
+</head>
+<body style="background-image: url('bg.jpg'); background-size: cover; background-attachment: fixed;">
+    <div class="container text-center mt-5 pb-5">
+        <h1 class="display-4"
+            style="font-family: 'Lavishly Yours', cursive; color: ivory">
+            Ask me anything
+        </h1>
+
+        <form method="POST" class="mx-auto col-md-8 col-lg-6" id="prompt-form">
+            <div class="mb-3">
+                <textarea name="prompt" rows="4" class="form-control"
+                          placeholder="Describe an image..." required></textarea>
+            </div>
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary" id="submit-btn">Generate</button>
+            </div>
+        </form>
+
+        {% if error %}
+            <div class="alert alert-danger mt-4">{{ error }}</div>
+        {% endif %}
+
+        {% if result %}
+            <h3 class="mt-4" style="color: ivory">Response:</h3>
+            <div class="alert alert-secondary">{{ result }}</div>
+        {% endif %}
+
+        {% if image_b64 %}
+            <h3 class="mt-4" style="color: ivory">Your image:</h3>
+            <img src="data:image/png;base64,{{ image_b64 }}"
+                 alt="Generated image"
+                 class="img-fluid rounded shadow mt-2">
+            <div class="mt-3">
+                <a href="data:image/png;base64,{{ image_b64 }}"
+                   download="generated.png"
+                   class="btn btn-outline-light">Download</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Image generation can take a while, so show feedback
+        document.getElementById("prompt-form").addEventListener("submit", function () {
+            const btn = document.getElementById("submit-btn");
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
+        });
+    </script>
+</body>
+</html>
