@@ -27,6 +27,11 @@ Connect artwork to larger systems: Relate visual elements and artistic choices t
 
 Return exactly these two sections, in this order:
 TOMBSTONE
+Include only the fields listed below in the tombstone. Base its description of
+the work only on the visitor's object description. Never include the visitor's
+IP address, network or device information, location, request metadata, or any
+other information not provided in that description or explicitly requested
+below.
 Title: a short evocative title, use metaphorical language and International Art English
 Artist: invent a plausible artist name, followed by a one-line fictional bio
 (for example, “b. 1997, lives and works between Verdun and the cloud”)
