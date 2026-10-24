@@ -119,7 +119,9 @@ def index():
                     extended_label = label_text
 
                 image = client.images.generate(
-                    model="gpt-image-1",
+                    # Keep this configurable because image model access can vary
+                    # by API project and available models may change over time.
+                    model=os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2"),
                     prompt=(
                         "Create a photorealistic contemporary art exhibition image, "
                         "using the museum label below as the sole source for the "
