@@ -1,13 +1,19 @@
 import os
+import threading
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from flask import Flask, render_template, request
+from flask import Flask, jsonify, render_template, request
 from openai import OpenAI
 
 load_dotenv()
 
 app = Flask(__name__)
+generation_executor = ThreadPoolExecutor(max_workers=2)
+generation_jobs = {}
+generation_jobs_lock = threading.Lock()
 
 LABEL_INSTRUCTIONS = """
 You are a contemporary art museum curator. A visitor will describe an ordinary
@@ -77,7 +83,103 @@ GALLERY_SETTINGS = {
 }
 
 
-@app.route("/", methods=["GET", "POST"])
+def create_exhibition(prompt, gallery_setting):
+    setting = GALLERY_SETTINGS[gallery_setting]
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    response = client.responses.create(
+        model="gpt-4.1",
+        instructions=LABEL_INSTRUCTIONS,
+        timeout=120,
+        input=(
+            f"Visitor's object description:\n{prompt}\n\n"
+            f"Selected exhibition venue: {setting['name']}. Let the venue's character subtly inform the curatorial voice."
+        ),
+        temperature=1,
+        max_output_tokens=400,
+    )
+    label_text = response.output_text.strip()
+    if "EXTENDED LABEL" in label_text:
+        tombstone, extended_label = label_text.split("EXTENDED LABEL", 1)
+        tombstone = tombstone.removeprefix("TOMBSTONE").strip()
+        extended_label = extended_label.strip()
+    else:
+        tombstone, extended_label = None, label_text
+
+    image = client.images.generate(
+        model=os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2"),
+        prompt=(
+            "Create a photorealistic contemporary art exhibition image, "
+            "using the museum label below as the sole source for the "
+            "artwork's identity, appearance, materials, and scale. Do not "
+            "use or infer details from any outside object description. "
+            "Follow the label's dimensions literally: make the work "
+            "monumental relative to the room when its measurements are "
+            "large, and appropriately small when they are small. If the "
+            "dimensions are described as variable, visibly express that "
+            "variability through scale, repetition, or an installation "
+            "that changes across the space. Choose the curatorial setting "
+            "that best suits the label: a white cube, a museum vitrine, "
+            "a lone plinth under a spotlight, or a biennale pavilion. "
+            "Keep the artwork faithful to the label. Use considered, "
+            "dramatic exhibition lighting. Show no people, labels, "
+            "lettering, words, or didactic panels.\n\n"
+            f"Museum label (the only artwork source):\n{label_text}"
+        ),
+        size="1024x1024",
+        quality="medium",
+        n=1,
+    )
+    return {
+        "tombstone": tombstone,
+        "extended_label": extended_label,
+        "image_b64": image.data[0].b64_json,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+    }
+
+
+def run_generation(job_id, prompt, gallery_setting):
+    try:
+        result = create_exhibition(prompt, gallery_setting)
+        with generation_jobs_lock:
+            generation_jobs[job_id].update(status="complete", result=result)
+    except Exception:
+        app.logger.exception("Unable to create the object's exhibition")
+        with generation_jobs_lock:
+            generation_jobs[job_id].update(status="failed")
+
+
+@app.post("/api/generations")
+def start_generation():
+    prompt = request.form.get("prompt", "").strip()
+    gallery_setting = request.form.get("gallery_setting", "tate")
+    if not prompt:
+        return jsonify(error="Describe an object to make its exhibition."), 400
+    if gallery_setting not in GALLERY_SETTINGS:
+        gallery_setting = "tate"
+    if not os.getenv("OPENAI_API_KEY"):
+        return jsonify(error="Set OPENAI_API_KEY in your environment before generating an exhibition."), 400
+
+    job_id = uuid.uuid4().hex
+    with generation_jobs_lock:
+        generation_jobs[job_id] = {
+            "status": "pending",
+            "prompt": prompt,
+            "gallery_setting": gallery_setting,
+        }
+    generation_executor.submit(run_generation, job_id, prompt, gallery_setting)
+    return jsonify(job_id=job_id), 202
+
+
+@app.get("/api/generations/<job_id>")
+def generation_status(job_id):
+    with generation_jobs_lock:
+        job = generation_jobs.get(job_id)
+        if not job:
+            return jsonify(error="Generation not found. It may have expired after a server restart."), 404
+        return jsonify(status=job["status"])
+
+
+@app.route("/", methods=["GET"])
 def index():
     tombstone = None
     extended_label = None
@@ -87,68 +189,20 @@ def index():
     prompt = ""
     gallery_setting = "tate"
 
-    if request.method == "POST":
-        prompt = request.form.get("prompt", "").strip()
-        requested_setting = request.form.get("gallery_setting", "tate")
-        if requested_setting in GALLERY_SETTINGS:
-            gallery_setting = requested_setting
-        setting = GALLERY_SETTINGS[gallery_setting]
-        if not prompt:
-            error = "Describe an object to make its exhibition."
-        elif not os.getenv("OPENAI_API_KEY"):
-            error = "Set OPENAI_API_KEY in your environment before generating an exhibition."
-        else:
-            try:
-                client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-                response = client.responses.create(
-                    model="gpt-4.1",
-                    instructions=LABEL_INSTRUCTIONS,
-                    timeout=120,
-                    input=(
-                        f"Visitor's object description:\n{prompt}\n\n"
-                        f"Selected exhibition venue: {setting['name']}. Let the venue's character subtly inform the curatorial voice."
-                    ),
-                    temperature=1,
-                    max_output_tokens=400,
-                )
-                label_text = response.output_text.strip()
-                if "EXTENDED LABEL" in label_text:
-                    tombstone, extended_label = label_text.split("EXTENDED LABEL", 1)
-                    tombstone = tombstone.removeprefix("TOMBSTONE").strip()
-                    extended_label = extended_label.strip()
-                else:
-                    extended_label = label_text
-
-                image = client.images.generate(
-                    # Keep this configurable because image model access can vary
-                    # by API project and available models may change over time.
-                    model=os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2"),
-                    prompt=(
-                        "Create a photorealistic contemporary art exhibition image, "
-                        "using the museum label below as the sole source for the "
-                        "artwork's identity, appearance, materials, and scale. Do not "
-                        "use or infer details from any outside object description. "
-                        "Follow the label's dimensions literally: make the work "
-                        "monumental relative to the room when its measurements are "
-                        "large, and appropriately small when they are small. If the "
-                        "dimensions are described as variable, visibly express that "
-                        "variability through scale, repetition, or an installation "
-                        "that changes across the space. Choose the curatorial setting "
-                        "that best suits the label: a white cube, a museum vitrine, "
-                        "a lone plinth under a spotlight, or a biennale pavilion. "
-                        "Keep the artwork faithful to the label. Use considered, "
-                        "dramatic exhibition lighting. Show no people, labels, "
-                        "lettering, words, or didactic panels.\n\n"
-                        f"Museum label (the only artwork source):\n{label_text}"
-                    ),
-                    size="1024x1024",
-                    quality="medium",
-                    n=1,
-                )
-                image_b64 = image.data[0].b64_json
-                generated_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
-            except Exception:
-                app.logger.exception("Unable to create the object's exhibition")
+    job_id = request.args.get("job_id")
+    if job_id:
+        with generation_jobs_lock:
+            job = generation_jobs.get(job_id)
+            if job and job["status"] == "complete":
+                prompt = job["prompt"]
+                gallery_setting = job["gallery_setting"]
+                tombstone = job["result"]["tombstone"]
+                extended_label = job["result"]["extended_label"]
+                image_b64 = job["result"]["image_b64"]
+                generated_at = job["result"]["generated_at"]
+            elif job and job["status"] == "failed":
+                prompt = job["prompt"]
+                gallery_setting = job["gallery_setting"]
                 error = "The exhibition could not be created. Please try again."
 
     return render_template(

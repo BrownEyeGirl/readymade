@@ -37,6 +37,8 @@
             </div>
             </form>
 
+            <p id="generation-status" class="mt-3" role="status" aria-live="polite"></p>
+
             {% if error %}
                 <div class="alert alert-danger mt-4">{{ error }}</div>
             {% endif %}
@@ -109,12 +111,24 @@
     </div>
 
     <script>
-        // Image generation can take a while, so show feedback
-        document.getElementById("prompt-form").addEventListener("submit", function () {
+        // Start generation with a short request, then check its status separately.
+        document.getElementById("prompt-form").addEventListener("submit", async function (event) {
+            event.preventDefault();
             const btn = document.getElementById("submit-btn");
+            const status = document.getElementById("generation-status");
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border" aria-hidden="true"></span><span class="visually-hidden">Generating...</span>';
             btn.classList.add("is-generating");
+            status.textContent = "Creating your exhibition. This can take a few minutes; you can keep this page open.";
+            let generating = true;
+            const showGenerationError = (error) => {
+                generating = false;
+                status.textContent = error.message;
+                btn.disabled = false;
+                btn.textContent = "Make it art";
+                btn.classList.remove("is-generating", "dvd-bouncing");
+                btn.removeAttribute("style");
+            };
 
             if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
                 const bounds = btn.getBoundingClientRect();
@@ -134,6 +148,7 @@
                 });
 
                 const bounce = () => {
+                    if (!generating) return;
                     const maxX = Math.max(0, window.innerWidth - width);
                     const maxY = Math.max(0, window.innerHeight - height);
                     x += dx;
@@ -150,6 +165,30 @@
                     requestAnimationFrame(bounce);
                 };
                 requestAnimationFrame(bounce);
+            }
+
+            try {
+                const startResponse = await fetch("{{ url_for('start_generation') }}", {
+                    method: "POST",
+                    body: new FormData(event.currentTarget)
+                });
+                const started = await startResponse.json();
+                if (!startResponse.ok) throw new Error(started.error || "Could not start generation.");
+
+                const poll = async () => {
+                    const response = await fetch(`{{ url_for('generation_status', job_id='JOB_ID') }}`.replace("JOB_ID", encodeURIComponent(started.job_id)), { cache: "no-store" });
+                    const job = await response.json();
+                    if (!response.ok) throw new Error(job.error || "Could not check generation status.");
+                    if (job.status === "complete") {
+                        window.location.assign(`{{ url_for('index') }}?job_id=${encodeURIComponent(started.job_id)}`);
+                        return;
+                    }
+                    if (job.status === "failed") throw new Error("The exhibition could not be created. Please try again.");
+                    window.setTimeout(() => poll().catch(showGenerationError), 2500);
+                };
+                window.setTimeout(() => poll().catch(showGenerationError), 1500);
+            } catch (error) {
+                showGenerationError(error);
             }
         });
 
