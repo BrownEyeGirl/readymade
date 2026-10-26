@@ -102,13 +102,12 @@ def index():
                 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
                 response = client.responses.create(
                     model="gpt-4.1",
-                    timeout=120,
                     instructions=LABEL_INSTRUCTIONS,
+                    timeout=120,
                     input=(
                         f"Visitor's object description:\n{prompt}\n\n"
                         f"Selected exhibition venue: {setting['name']}. Let the venue's character subtly inform the curatorial voice."
                     ),
-                    p
                     temperature=1,
                     max_output_tokens=400,
                 )
